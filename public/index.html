@@ -1,0 +1,348 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Asteroids</title>
+</head>
+<body>
+  <style>* {padding: 0; margin: 0}</style>
+  <script src="https://pixijs.download/v6.2.0/pixi.min.js"></script>
+  <script src="js/completeTheGame.js"></script>
+  <script type="text/javascript">
+    const Application = PIXI.Application,
+          loader = PIXI.Loader.shared,
+          resources = PIXI.Loader.shared.resources,
+          Sprite = PIXI.Sprite;
+    let asteroids = [];
+    let lasers = [];
+    let bonus;
+    let score = 0;
+
+    function getRandomInt(max) {
+      return Math.floor(Math.random() * max);
+    }
+
+    function hitTestRectangle(r1, r2) {
+      let hit, combinedHalfWidths, combinedHalfHeights, vx, vy;
+
+      hit = false;
+
+      r1.centerX = r1.x + r1.width / 2;
+      r1.centerY = r1.y + r1.height / 2;
+      r2.centerX = r2.x + r2.width / 2;
+      r2.centerY = r2.y + r2.height / 2;
+
+      r1.halfWidth = r1.width / 2;
+      r1.halfHeight = r1.height / 2;
+      r2.halfWidth = r2.width / 2;
+      r2.halfHeight = r2.height / 2;
+
+      vx = r1.centerX - r2.centerX;
+      vy = r1.centerY - r2.centerY;
+
+      combinedHalfWidths = r1.halfWidth + r2.halfWidth;
+      combinedHalfHeights = r1.halfHeight + r2.halfHeight;
+
+      if (Math.abs(vx) < combinedHalfWidths) {
+        if (Math.abs(vy) < combinedHalfHeights) {
+          hit = true;
+        } else {
+          hit = false;
+        }
+      } else {
+        hit = false;
+      }
+
+      return hit;
+    };
+    
+    function keyboard(value) {
+      const key = {};
+      key.value = value;
+      key.isDown = false;
+      key.isUp = true;
+      key.press = undefined;
+      key.release = undefined;
+      key.downHandler = (event) => {
+        if (event.key === key.value) {
+          if (key.isUp && key.press) {
+            key.press();
+          }
+          key.isDown = true;
+          key.isUp = false;
+          event.preventDefault();
+        }
+      };
+
+      key.upHandler = (event) => {
+        if (event.key === key.value) {
+          if (key.isDown && key.release) {
+            key.release();
+          }
+          key.isDown = false;
+          key.isUp = true;
+          event.preventDefault();
+        }
+      };
+
+      const downListener = key.downHandler.bind(key);
+      const upListener = key.upHandler.bind(key);
+      
+      window.addEventListener('keydown', downListener, false);
+      window.addEventListener('keyup', upListener, false);
+      
+      key.unsubscribe = () => {
+        window.removeEventListener('keydown', downListener);
+        window.removeEventListener('keyup', upListener);
+      };
+      
+      return key;
+    }
+
+    const app = new PIXI.Application({ 
+      width: 256,
+      height: 256,
+      antialias: true,
+      transparent: false,
+      resolution: 1
+    });
+
+    app.renderer.view.style.position = 'absolute';
+    app.renderer.view.style.display = 'block';
+    app.renderer.autoDensity = true;
+    app.resizeTo = window;
+
+    document.body.appendChild(app.view);
+
+    loader
+      .add('images/ship.png')
+      .add('images/asteroidbig1.png')
+      .add('images/asteroidbig2.png')
+      .add('images/asteroidbig3.png')
+      .add('images/asteroidbig4.png')
+      .add('images/asteroidmed1.png')
+      .add('images/asteroidmed2.png')
+      .add('images/asteroidsmall1.png')
+      .add('images/asteroidsmall2.png')
+      .add('images/asteroidtiny1.png')
+      .add('images/asteroidtiny2.png')
+      .add('images/laserleft.png')
+      .add('images/laser.png')
+      .add('images/laserright.png')
+      .add('images/bonus.png')
+      .load(setup);
+
+  function setup() {
+    const style = new PIXI.TextStyle({
+      fontFamily: 'Arial',
+      fontSize: 36,
+      fill: 'white',
+      stroke: '#ff3300',
+      strokeThickness: 4,
+      dropShadow: true,
+      dropShadowColor: '#000000',
+      dropShadowBlur: 4,
+      dropShadowAngle: Math.PI / 6,
+      dropShadowDistance: 6,
+    });
+    
+    const message = new PIXI.Text(`Score: ${score}`, style);
+    message.position.set(0, 0);
+    app.stage.addChild(message);
+
+    const ship = new Sprite(resources['images/ship.png'].texture);
+    ship.x = (app.screen.width / 2) - (ship.width / 2);
+    ship.y = app.screen.height - ship.height;
+    ship.vx = 0;
+    ship.vy = 0;
+    app.stage.addChild(ship);
+
+    const generateNewAsteroid = () => {
+      setTimeout(() => {
+        let size, health, points;
+        switch (getRandomInt(4)) {
+          case 0:
+            size = 'big';
+            health = 3;
+            points = getRandomInt(50) + 1;
+            break;
+          case 1:
+            size = 'med';
+            health = 2;
+            points = getRandomInt(25) + 1;
+            break;
+          case 2:
+            size = 'small';
+            health = 1;
+            points = getRandomInt(10) + 1;
+            break;
+          case 3:
+            size = 'tiny';
+            health = 1;
+            points = getRandomInt(5) + 1;
+            break;
+        }
+        
+        const type = size === 'big' ? getRandomInt(4) + 1 : getRandomInt(2) + 1;
+        const asteroid = new Sprite(resources[`images/asteroid${size}${type}.png`].texture);
+        asteroid.y = (app.screen.height / 2) - getRandomInt(app.screen.height / 2);
+        asteroid.health = health;
+        asteroid.points = points;
+        
+        const fromRight = getRandomInt(100) > 50;
+        if (fromRight) {
+          asteroid.x = app.screen.width + 50;
+          asteroid.vx = -(getRandomInt(2) + 1);
+        } else {
+          asteroid.x = -50;
+          asteroid.vx = getRandomInt(2) + 1;
+        }
+        asteroid.vy = 0;
+        asteroids.push(asteroid);
+
+        app.stage.addChild(asteroid);
+      }, getRandomInt(5000));
+    };
+
+    for (let i = 0; i < 20; i++) {
+      generateNewAsteroid();
+    }
+
+    const left = keyboard('ArrowLeft'),
+          right = keyboard('ArrowRight')
+          space = keyboard(' ');
+
+    space.press = () => {
+      let leftLaser = new Sprite(resources['images/laserleft.png'].texture);
+      leftLaser.x = ship.x + (ship.width / 2) - leftLaser.width;
+      leftLaser.y = app.screen.height - ship.height - leftLaser.height;
+      leftLaser.vx = -3.5;
+      leftLaser.vy = -3.5;
+      lasers.push(leftLaser);
+      app.stage.addChild(leftLaser);
+
+      let centerLaser = new Sprite(resources['images/laser.png'].texture);
+      centerLaser.x = ship.x + (ship.width / 2) - (centerLaser.width/ 2);
+      centerLaser.y = app.screen.height - ship.height - centerLaser.height;
+      centerLaser.vx = 0;
+      centerLaser.vy = -3.5;
+      lasers.push(centerLaser);
+      app.stage.addChild(centerLaser);
+
+      let rightLaser = new Sprite(resources['images/laserright.png'].texture);
+      rightLaser.x = ship.x + (ship.width / 2);
+      rightLaser.y = app.screen.height - ship.height - rightLaser.height;
+      rightLaser.vx = 3.5;
+      rightLaser.vy = -3.5;
+      lasers.push(rightLaser);
+      app.stage.addChild(rightLaser);
+    };
+  
+    left.press = () => {
+      ship.vx = -5;
+    };
+
+    left.release = () => {
+      if (!right.isDown) {
+        ship.vx = 0;
+      }
+    };
+
+    right.press = () => {
+      ship.vx = 5;
+    };
+    
+    right.release = () => {
+      if (!left.isDown) {
+        ship.vx = 0;
+      }
+    };
+
+    state = play;
+  
+    app.ticker.add((delta) => gameLoop(delta));
+
+    function gameLoop(delta) {
+      state(delta);
+    }
+
+    function play(delta) {
+      if (ship.x + ship.vx < app.screen.width - ship.width && ship.x + ship.vx > 0) {
+        ship.x += ship.vx;
+      }
+
+      let i = lasers.length;
+      while (i--) {
+        const l = lasers[i];
+        l.x += l.vx;
+        l.y += l.vy;
+
+        // handle collision detection
+        let laserStillValid = true;
+        if (bonus && hitTestRectangle(l, bonus)) {
+          score += bonus.points;
+          message.text = `Score: ${score}`;
+          app.stage.removeChild(l);
+          app.stage.removeChild(bonus);
+          lasers.splice(i, 1);
+          laserStillValid = false;
+          bonus = null;
+        }
+
+        if (laserStillValid) {
+          for (let x = 0; x < asteroids.length; x++) {
+            if (hitTestRectangle(l, asteroids[x])) {
+              asteroids[x].health--;
+              app.stage.removeChild(l);
+              lasers.splice(i, 1);
+              laserStillValid = false;
+              break;
+            }
+          }
+        }
+
+        if (laserStillValid) {
+          if (l.vx < 0 && l.x < -l.width || l.vx > 0 && l.x > app.screen.width + l.width) {
+            app.stage.removeChild(l);
+            lasers.splice(i, 1);
+          }
+        }
+      }
+
+      let j = asteroids.length;
+      while (j--) {
+        const d = asteroids[j];
+        d.x += d.vx;
+        if ((d.vx < 0 && d.x < -d.width) || (d.vx > 0 && d.x > app.screen.width + d.width)) {
+          app.stage.removeChild(d);
+          asteroids.splice(j, 1);
+          generateNewAsteroid();
+        }
+      }
+
+      if (!bonus) {
+        bonus = new Sprite(resources['images/bonus.png'].texture);
+        bonus.x = getRandomInt(app.screen.width - bonus.width);
+        bonus.y = getRandomInt(app.screen.height / 2);
+        bonus.vx = 0;
+        bonus.points = getRandomInt(100);
+        app.stage.addChild(bonus);
+      }
+
+      score = calculateTheNewScore(asteroids, score);
+      message.text = `Score: ${score || 0}`;
+
+      j = asteroids.length;
+      while (j--) {
+        const d = asteroids[j];
+        if (d.health === 0) {
+          app.stage.removeChild(d);
+          asteroids.splice(j, 1);
+          generateNewAsteroid();
+        }
+      }
+    }
+  }
+  </script>
+</body>
+</html>
