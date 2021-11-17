@@ -11,7 +11,7 @@ First you need to have these basic things installed:
 
 1. A web browser, yea we all have one
 2. Nodejs: Visit this site to find easy steps to install https://nodejs.org/en/download/
-3. The code for the game which you can download from <> and extract to any folder.
+3. The code for the game which you can download from ![Code](https://github.com/Svjard/asteroids/archive/refs/tags/v1.0.0.zip) and extract to any folder.
 
 Once you have these installed, there are couple basic commands you need to run
 in your console.
